@@ -2,6 +2,8 @@
 
 Local single-page app for ingesting **public** health-insurance policy pages and PDFs, correcting them, storing chunks in ChromaDB, and testing retrieval. No API keys. Nothing is preloaded — the KB only contains what you approve.
 
+Full stack, API, and code walkthrough: [DOCUMENTATION.md](DOCUMENTATION.md).
+
 Do not paste real personal data. The PII checkbox is a **flag only** (SSN / phone / email / DOB-like patterns). It does not redact.
 
 ## Stack
