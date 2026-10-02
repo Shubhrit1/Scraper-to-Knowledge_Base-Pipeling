@@ -1,0 +1,23 @@
+# Python environment
+.venv/
+venv/
+env/
+
+# Knowledge base (Chroma persistent store)
+chroma_db/
+
+# App-generated evaluation log
+results.json
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Local OS / editor
+.DS_Store
+Thumbs.db
+*.log

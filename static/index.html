@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Health Insurance KB Pipeline</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --card: #fff;
+      --ink: #1c2430;
+      --muted: #5b6775;
+      --line: #d8dee6;
+      --accent: #0f5c8c;
+      --accent-2: #0a4266;
+      --warn: #8a4b12;
+      --ok: #1b6b3a;
+      --err: #9b1c2c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.45;
+    }
+    header {
+      background: var(--accent-2);
+      color: #fff;
+      padding: 1.1rem 1.5rem;
+    }
+    header h1 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+    header p { margin: 0.35rem 0 0; opacity: 0.85; font-size: 0.9rem; }
+    main { max-width: 920px; margin: 0 auto; padding: 1.25rem; }
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 1.15rem 1.25rem 1.3rem;
+      margin-bottom: 1rem;
+    }
+    h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
+    label { display: block; font-size: 0.82rem; color: var(--muted); margin: 0.65rem 0 0.25rem; }
+    input[type="text"], input[type="url"], textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      font: inherit;
+      color: var(--ink);
+      background: #fff;
+    }
+    textarea { min-height: 280px; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 0.86rem; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .actions { display: flex; gap: 0.5rem; margin-top: 0.85rem; flex-wrap: wrap; }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: 0;
+      border-radius: 6px;
+      padding: 0.5rem 0.9rem;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-2); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button.secondary { background: #4a5563; }
+    .check { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.85rem; font-size: 0.92rem; }
+    .check input { width: auto; }
+    .status { margin-top: 0.7rem; font-size: 0.88rem; color: var(--muted); }
+    .status.err { color: var(--err); }
+    .status.ok { color: var(--ok); }
+    .status.warn { color: var(--warn); }
+    .result {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.85rem;
+      margin-top: 0.75rem;
+      background: #fafbfc;
+    }
+    .meta { font-size: 0.82rem; color: var(--muted); margin-bottom: 0.4rem; }
+    .chunk { white-space: pre-wrap; font-size: 0.88rem; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem; max-height: 180px; overflow: auto; }
+    .hidden { display: none; }
+    @media (max-width: 680px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Health Insurance Knowledge Base</h1>
+    <p>Scrape public policy pages, correct, approve into a local vector store, then test retrieval. No API keys. Do not paste personal data.</p>
+  </header>
+  <main>
+    <section>
+      <h2>1. Scrape source</h2>
+      <label for="url">Page or PDF URL</label>
+      <input id="url" type="url" placeholder="https://…" autocomplete="off" />
+      <div class="actions">
+        <button id="scrapeBtn" type="button">Scrape</button>
+      </div>
+      <label for="file">Or load a saved HTML/PDF (use this when the site blocks scraping)</label>
+      <input id="file" type="file" accept=".pdf,.html,.htm,application/pdf,text/html" />
+      <div class="actions">
+        <button id="fileBtn" type="button">Load file</button>
+      </div>
+      <div id="scrapeStatus" class="status"></div>
+    </section>
+
+    <section id="correctSection" class="hidden">
+      <h2>2. Correct &amp; approve</h2>
+      <div class="row">
+        <div>
+          <label for="title">Title</label>
+          <input id="title" type="text" />
+        </div>
+        <div>
+          <label for="category">Category</label>
+          <input id="category" type="text" placeholder="e.g. coverage, claims, eligibility" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="source">Source</label>
+          <input id="source" type="text" />
+        </div>
+        <div>
+          <label for="version">Version</label>
+          <input id="version" type="text" value="1.0" />
+        </div>
+      </div>
+      <label class="check">
+        <input id="pii" type="checkbox" />
+        Possible PII detected (flag only — not auto-redacted)
+      </label>
+      <label for="body">Cleaned text</label>
+      <textarea id="body"></textarea>
+      <div class="actions">
+        <button id="approveBtn" type="button">Approve &amp; Add to KB</button>
+      </div>
+      <div id="approveStatus" class="status"></div>
+    </section>
+
+    <section>
+      <h2>3. Test retrieval</h2>
+      <label for="query">Query</label>
+      <input id="query" type="text" placeholder="Ask about approved policy content…" />
+      <div class="actions">
+        <button id="searchBtn" type="button">Search</button>
+      </div>
+      <div id="searchStatus" class="status"></div>
+      <div id="results"></div>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function setStatus(el, msg, kind) {
+      el.textContent = msg;
+      el.className = "status" + (kind ? " " + kind : "");
+    }
+
+    function applyDoc(data, fallbackSource) {
+      $("title").value = data.title || "";
+      $("source").value = data.source || fallbackSource || "";
+      $("version").value = data.version || "1.0";
+      $("body").value = data.text || "";
+      $("pii").checked = !!data.pii_suspected;
+      $("correctSection").classList.remove("hidden");
+      setStatus(
+        $("scrapeStatus"),
+        data.pii_suspected
+          ? "Loaded. Possible PII patterns flagged — review before approving."
+          : "Loaded. Review the text, then approve into the knowledge base.",
+        data.pii_suspected ? "warn" : "ok"
+      );
+    }
+
+    function readError(data, fallback) {
+      const detail = data && data.detail;
+      if (typeof detail === "string") return detail;
+      if (Array.isArray(detail)) {
+        return detail.map((item) => item.msg || JSON.stringify(item)).join("; ");
+      }
+      if (detail) return JSON.stringify(detail);
+      return fallback;
+    }
+
+    async function post(path, payload) {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(readError(data, res.statusText || "Request failed"));
+      return data;
+    }
+
+    $("scrapeBtn").onclick = async () => {
+      const url = $("url").value.trim();
+      if (!url) {
+        setStatus($("scrapeStatus"), "Enter a URL first.", "err");
+        return;
+      }
+      $("scrapeBtn").disabled = true;
+      setStatus($("scrapeStatus"), "Fetching and cleaning… first PDF/HTML parse may take a moment.");
+      try {
+        applyDoc(await post("/api/scrape", { url }), url);
+      } catch (err) {
+        setStatus($("scrapeStatus"), String(err.message || err), "err");
+      } finally {
+        $("scrapeBtn").disabled = false;
+      }
+    };
+
+    $("fileBtn").onclick = async () => {
+      const input = $("file");
+      const file = input.files && input.files[0];
+      if (!file) {
+        setStatus($("scrapeStatus"), "Choose a PDF or HTML file first.", "err");
+        return;
+      }
+      $("fileBtn").disabled = true;
+      setStatus($("scrapeStatus"), "Reading local file…");
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("source", $("url").value.trim() || file.name);
+        const res = await fetch("/api/ingest-file", { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(readError(data, res.statusText || "Request failed"));
+        applyDoc(data, $("url").value.trim() || file.name);
+      } catch (err) {
+        setStatus($("scrapeStatus"), String(err.message || err), "err");
+      } finally {
+        $("fileBtn").disabled = false;
+      }
+    };
+
+    $("approveBtn").onclick = async () => {
+      const text = $("body").value.trim();
+      const title = $("title").value.trim();
+      if (!title || !text) {
+        setStatus($("approveStatus"), "Title and text are required.", "err");
+        return;
+      }
+      $("approveBtn").disabled = true;
+      setStatus($("approveStatus"), "Chunking, embedding, and storing locally… (model loads on first use).");
+      try {
+        const data = await post("/api/kb/add", {
+          title,
+          category: $("category").value.trim(),
+          source: $("source").value.trim(),
+          version: $("version").value.trim() || "1.0",
+          pii: $("pii").checked,
+          text,
+        });
+        setStatus(
+          $("approveStatus"),
+          "Added record " + data.record_id + " (" + data.chunks_added + " chunks).",
+          "ok"
+        );
+      } catch (err) {
+        setStatus($("approveStatus"), String(err.message || err), "err");
+      } finally {
+        $("approveBtn").disabled = false;
+      }
+    };
+
+    $("searchBtn").onclick = async () => {
+      const query = $("query").value.trim();
+      if (!query) {
+        setStatus($("searchStatus"), "Enter a query.", "err");
+        return;
+      }
+      $("searchBtn").disabled = true;
+      $("results").innerHTML = "";
+      setStatus($("searchStatus"), "Searching top 3 chunks…");
+      try {
+        const data = await post("/api/search", { query });
+        const hits = data.results || [];
+        if (!hits.length) {
+          setStatus($("searchStatus"), "No chunks in the knowledge base yet. Approve a source first.", "warn");
+          return;
+        }
+        setStatus($("searchStatus"), "Top " + hits.length + " results.", "ok");
+        hits.forEach((hit, i) => {
+          const wrap = document.createElement("div");
+          wrap.className = "result";
+          wrap.innerHTML =
+            '<div class="meta"><strong>#' + (i + 1) + "</strong> · score " +
+            hit.score + " · " + (hit.title ? hit.title + " · " : "") +
+            (hit.source || "unknown source") + "</div>" +
+            '<div class="chunk"></div>' +
+            '<label>Verdict</label>' +
+            '<select>' +
+              '<option value="">Select…</option>' +
+              '<option value="correct">correct</option>' +
+              '<option value="partially correct">partially correct</option>' +
+              '<option value="incorrect">incorrect</option>' +
+            "</select>" +
+            "<label>Explanation</label>" +
+            '<textarea class="explain" style="min-height:70px"></textarea>' +
+            '<div class="actions"><button type="button" class="secondary">Save Result</button></div>' +
+            '<div class="status"></div>';
+          wrap.querySelector(".chunk").textContent = hit.chunk;
+          const saveBtn = wrap.querySelector("button");
+          const statusEl = wrap.querySelector(".status");
+          saveBtn.onclick = async () => {
+            const verdict = wrap.querySelector("select").value;
+            if (!verdict) {
+              setStatus(statusEl, "Choose a verdict.", "err");
+              return;
+            }
+            saveBtn.disabled = true;
+            try {
+              await post("/api/results", {
+                query,
+                chunk: hit.chunk,
+                source: hit.source || "",
+                score: hit.score,
+                verdict,
+                explanation: wrap.querySelector(".explain").value,
+              });
+              setStatus(statusEl, "Appended to results.json", "ok");
+            } catch (err) {
+              setStatus(statusEl, String(err.message || err), "err");
+            } finally {
+              saveBtn.disabled = false;
+            }
+          };
+          $("results").appendChild(wrap);
+        });
+      } catch (err) {
+        setStatus($("searchStatus"), String(err.message || err), "err");
+      } finally {
+        $("searchBtn").disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>
